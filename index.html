@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion Inventaire - Protection Civile 56</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -705,16 +704,15 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+
     <script>
         // Configuration Supabase
         const SUPABASE_URL = 'https://hnmftuipbpcfavtotfaf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhubWZ0dWlwYnBjZmF2dG90ZmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwNzgxMDUsImV4cCI6MjA4NjY1NDEwNX0.JRHkP5eTvBcnCNsLCvjo9EBh3lDQoeTLj6-9Vimk39M';
-        let supabase;
         
-        // Initialiser Supabase une fois le DOM chargé
-        document.addEventListener('DOMContentLoaded', function() {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        });
+        // Créer le client Supabase (comme l'original avec 'db')
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // Variables globales
         let currentUser = null;
@@ -733,7 +731,7 @@
             }
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await db
                     .from('users')
                     .select('*')
                     .eq('username', username)
@@ -748,7 +746,7 @@
                 currentUser = data;
 
                 // Charger tous les rôles de l'utilisateur
-                const { data: roles, error: rolesError } = await supabase
+                const { data: roles, error: rolesError } = await db
                     .from('user_roles')
                     .select('*, containers(name)')
                     .eq('username', username);
@@ -908,7 +906,7 @@
         // Charger les conteneurs dans les filtres
         async function loadContainers() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await db
                     .from('containers')
                     .select('*')
                     .eq('active', true)
@@ -944,7 +942,7 @@
                 const site = document.getElementById('siteFilter').value;
                 const containerId = document.getElementById('containerFilter').value;
 
-                let query = supabase
+                let query = db
                     .from('inventory')
                     .select('*, containers(name, parent_site)')
                     .order('name');
@@ -962,7 +960,7 @@
                     query = query.eq('container_id', parseInt(containerId));
                 }
 
-                const { data, error } = await supabase
+                const { data, error } = await db
                     .from('inventory')
                     .select('*, containers(name, parent_site)')
                     .order('name');
@@ -1056,14 +1054,14 @@
                 const newQty = currentQty - 1;
 
                 // Mettre à jour le conteneur
-                await supabase
+                await db
                     .from('inventory')
                     .update({ quantity: newQty })
                     .eq('id', itemId);
 
                 // Si c'est un conteneur, retirer aussi du stock global
                 if (containerId) {
-                    const { data: globalItem } = await supabase
+                    const { data: globalItem } = await db
                         .from('inventory')
                         .select('*')
                         .eq('name', itemName)
@@ -1072,7 +1070,7 @@
                         .single();
 
                     if (globalItem && globalItem.quantity > 0) {
-                        await supabase
+                        await db
                             .from('inventory')
                             .update({ quantity: globalItem.quantity - 1 })
                             .eq('id', globalItem.id);
@@ -1080,7 +1078,7 @@
                 }
 
                 // Log
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'retrait',
                     description: `Retrait rapide -1 : ${itemName} (quantité: ${newQty})`
@@ -1108,7 +1106,7 @@
             }
 
             try {
-                const { data: item } = await supabase
+                const { data: item } = await db
                     .from('inventory')
                     .select('*, containers(parent_site)')
                     .eq('id', editingItemId)
@@ -1116,7 +1114,7 @@
 
                 const oldQty = item.quantity;
 
-                await supabase
+                await db
                     .from('inventory')
                     .update({ quantity: newQty })
                     .eq('id', editingItemId);
@@ -1126,7 +1124,7 @@
                     const diff = newQty - oldQty;
                     const parentSite = item.containers.parent_site;
 
-                    const { data: globalItem } = await supabase
+                    const { data: globalItem } = await db
                         .from('inventory')
                         .select('*')
                         .eq('name', item.name)
@@ -1136,14 +1134,14 @@
 
                     if (globalItem) {
                         const newGlobalQty = Math.max(0, globalItem.quantity + diff);
-                        await supabase
+                        await db
                             .from('inventory')
                             .update({ quantity: newGlobalQty })
                             .eq('id', globalItem.id);
                     }
                 }
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'modification',
                     description: `Modification quantité ${item.name} : ${oldQty} → ${newQty}`
@@ -1176,7 +1174,7 @@
             }
 
             try {
-                await supabase.from('inventory').insert({
+                await db.from('inventory').insert({
                     name,
                     site,
                     container_id: containerId ? parseInt(containerId) : null,
@@ -1186,7 +1184,7 @@
                     category
                 });
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'ajout',
                     description: `Ajout article : ${name} (${quantity} unités)`
@@ -1203,12 +1201,12 @@
             if (!confirm(`Supprimer définitivement l'article "${itemName}" ?`)) return;
 
             try {
-                await supabase
+                await db
                     .from('inventory')
                     .delete()
                     .eq('id', itemId);
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'suppression',
                     description: `Suppression article : ${itemName}`
@@ -1223,12 +1221,12 @@
         // Gestion des utilisateurs
         async function loadUsers() {
             try {
-                const { data: users } = await supabase
+                const { data: users } = await db
                     .from('users')
                     .select('*')
                     .order('username');
 
-                const { data: allRoles } = await supabase
+                const { data: allRoles } = await db
                     .from('user_roles')
                     .select('*, containers(name)');
 
@@ -1296,7 +1294,7 @@
             }
 
             try {
-                await supabase.from('users').insert({
+                await db.from('users').insert({
                     username,
                     password,
                     firstname,
@@ -1304,7 +1302,7 @@
                     site: null
                 });
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'creation_user',
                     description: `Création utilisateur : ${username}`
@@ -1321,8 +1319,8 @@
             if (!confirm(`Supprimer l'utilisateur ${username} ?`)) return;
 
             try {
-                await supabase.from('users').delete().eq('username', username);
-                await supabase.from('logs').insert({
+                await db.from('users').delete().eq('username', username);
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'suppression_user',
                     description: `Suppression utilisateur : ${username}`
@@ -1339,7 +1337,7 @@
             document.getElementById('addRoleForm').classList.add('hidden');
 
             // Charger les rôles actuels
-            const { data: roles } = await supabase
+            const { data: roles } = await db
                 .from('user_roles')
                 .select('*, containers(name)')
                 .eq('username', username);
@@ -1393,14 +1391,14 @@
             const containerId = document.getElementById('newRoleContainer').value || null;
 
             try {
-                await supabase.from('user_roles').insert({
+                await db.from('user_roles').insert({
                     username,
                     role_type: roleType,
                     site,
                     container_id: containerId ? parseInt(containerId) : null
                 });
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'ajout_role',
                     description: `Ajout rôle ${roleType} pour ${username}`
@@ -1416,8 +1414,8 @@
             if (!confirm('Retirer ce rôle ?')) return;
 
             try {
-                await supabase.from('user_roles').delete().eq('id', roleId);
-                await supabase.from('logs').insert({
+                await db.from('user_roles').delete().eq('id', roleId);
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'retrait_role',
                     description: `Retrait rôle pour ${username}`
@@ -1431,7 +1429,7 @@
         // Gestion des conteneurs
         async function loadContainersTable() {
             try {
-                const { data } = await supabase
+                const { data } = await db
                     .from('containers')
                     .select('*')
                     .order('parent_site', { ascending: true })
@@ -1474,14 +1472,14 @@
             }
 
             try {
-                await supabase.from('containers').insert({
+                await db.from('containers').insert({
                     name,
                     type,
                     parent_site: site,
                     active: true
                 });
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'creation_container',
                     description: `Création conteneur : ${name} (${type})`
@@ -1497,12 +1495,12 @@
 
         async function toggleContainer(containerId, newState) {
             try {
-                await supabase
+                await db
                     .from('containers')
                     .update({ active: newState })
                     .eq('id', containerId);
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'modification_container',
                     description: `Conteneur ${newState ? 'activé' : 'désactivé'}`
@@ -1519,12 +1517,12 @@
             if (!confirm(`Supprimer le conteneur "${containerName}" ?\nTous les articles associés seront également supprimés.`)) return;
 
             try {
-                await supabase
+                await db
                     .from('containers')
                     .delete()
                     .eq('id', containerId);
 
-                await supabase.from('logs').insert({
+                await db.from('logs').insert({
                     username: currentUser.username,
                     action: 'suppression_container',
                     description: `Suppression conteneur : ${containerName}`
@@ -1540,7 +1538,7 @@
         // Historique
         async function loadLogs() {
             try {
-                const { data } = await supabase
+                const { data } = await db
                     .from('logs')
                     .select('*')
                     .order('timestamp', { ascending: false })
