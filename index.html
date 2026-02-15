@@ -1126,7 +1126,7 @@
             }
         };
         
-        function login() {
+        async function login() {
             const username = document.getElementById('loginUsername').value.toLowerCase().trim();
             const password = document.getElementById('loginPassword').value.trim();
             
@@ -1135,24 +1135,37 @@
                 return;
             }
             
-            // Vérifier d'abord dans les comptes en dur
-            if (accounts[username] && accounts[username].password === password) {
+            // NOUVELLE MÉTHODE SÉCURISÉE : Utiliser la fonction Supabase
+            console.log('🔒 Connexion sécurisée via Supabase...');
+            try {
+                const { data, error } = await db.rpc('login_user', {
+                    p_username: username,
+                    p_password: password
+                });
+                
+                console.log('🔒 Résultat login_user:', data);
+                
+                if (error) {
+                    console.error('🔒 Erreur Supabase:', error);
+                    document.getElementById('loginError').textContent = '❌ Erreur de connexion';
+                    return;
+                }
+                
+                // Si la fonction retourne success = false
+                if (!data || data.length === 0 || !data[0].success) {
+                    document.getElementById('loginError').textContent = '❌ Identifiants incorrects';
+                    return;
+                }
+                
+                // Connexion réussie !
+                console.log('✅ Connexion réussie pour', username);
                 currentUser = username;
-                // Pour les comptes en dur, charger les rôles depuis user_roles
-                loadUserRolesAndLogin(username);
-                return;
+                await loadUserRolesAndLogin(username);
+                
+            } catch (e) {
+                console.error('🔒 Exception:', e);
+                document.getElementById('loginError').textContent = '❌ Erreur technique';
             }
-            
-            // Sinon vérifier dans les utilisateurs chargés
-            const user = users[username];
-            if (!user || user.password !== password) {
-                document.getElementById('loginError').textContent = '❌ Identifiants incorrects';
-                return;
-            }
-            
-            // Connexion réussie
-            currentUser = username;
-            loadUserRolesAndLogin(username);
         }
         
         async function loadUserRolesAndLogin(username) {
@@ -1225,8 +1238,7 @@
             
             addLog('Connexion', user.firstname + ' s\'est connecté');
             
-            // Démarrer l'auto-refresh
-            startAutoRefresh();
+            // Auto-refresh supprimé - utiliser le bouton "Synchroniser" manuellement
         }
         
         function showRoleSelector() {
@@ -1294,8 +1306,7 @@
             const userData = getCurrentUserData();
             addLog('Connexion', userData.firstname + ' s\'est connecté en tant que ' + currentUserRole);
             
-            // Démarrer l'auto-refresh (toutes les 5 secondes)
-            startAutoRefresh();
+            // Auto-refresh supprimé - utiliser le bouton "Synchroniser" manuellement
         }
         
         function startAutoRefresh() {
